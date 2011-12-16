@@ -1,0 +1,95 @@
+URLs
+
+	OperateCamera
+		?zoom			absolute value
+		?pan			relative value to center?
+		?tilt			relative value to center?
+		?connection_id	sessionid
+
+	GetPanoramaList
+		?connection_id
+		?item
+			camera_id
+			date_and_time_string
+
+	GetNotice
+		?timeout
+			1800
+		?seq
+			1
+			2
+			3
+			4
+		?connection_id
+
+	OpenCameraServer
+		?client_version
+			Live_Applet_4125
+		?image_size
+			320x420
+
+	GetCameraServerInfo
+		?item
+			image_sizes
+		?connection_id
+
+	GetVideoInfo
+		?connection_id
+
+	GetCameraInfo
+		?connection_id
+
+	GetPresetList
+		?language
+			English
+		?character_set
+			ascii
+		?connection_id
+
+	GetCameraList
+		?language
+			English
+		?character_set
+			ascii
+		?connection_id
+
+	GetLiveImage
+		?connection_id
+		?serialize_requests
+			yes
+
+	GetPanoramaImage
+		?camera_id
+			1
+		?connection_id
+
+	GetCameraControl
+		?connection_id
+
+	CloseCameraServer
+		?connection_id
+	
+GetNotice seems to get called after all CameraOperations
+
+Order of operation
+	OpenCameraServer
+	GetNotice
+	GetCameraServerInfo
+	GetNotice
+	GetPanoramaList
+	GetCameraServerInfo
+	GetVideoInfo
+	GetCameraInfo
+	GetPresetList
+	GetCameraList
+	GetLiveImage
+	GetPanoramaImage
+	GetLiveImage *n
+	GetCameraControl
+	GetNotice
+	OperateCamera
+	GetNotice
+
+
+Urls are of form:
+	domain.com:52169/-wvhttp-01-/COMMAND?params...
