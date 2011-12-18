@@ -1,0 +1,7 @@
+This is a HTML5 Client for the Canon VB-C50i and VB-C50iR Network Cameras. It's written in CoffeeScript, Less CSS, jQuery, jQueryUI and HTML5 Canvas.
+
+The api is somewhat detailed from packet sniffing in notes.txt
+
+build.sh contains all the build commands.
+
+Camera Product http://www.canon.com.au/en-AU/Business/All-Products/Network-Cameras/VC-C50iR
