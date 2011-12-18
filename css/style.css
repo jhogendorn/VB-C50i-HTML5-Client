@@ -21,41 +21,48 @@ body, html {
 #control {
   position: absolute;
 }
-#control a {
-  display: block;
+#control .compass {
+  position: absolute;
+  width: 63px;
+  height: 63px;
+  bottom: 40px;
+  left: 47px;
+}
+#control .compass a {
+  width: 18px;
+  height: 18px;
   position: absolute;
 }
-#control a.up, #control a.down {
-  height: 60px;
-  left: 60px;
-  right: 60px;
+#control .compass .up.none {
+  left: 22px;
 }
-#control a.left, #control a.right {
-  width: 60px;
-  top: 0;
-  bottom: 0;
+#control .compass .up.right {
+  left: 44px;
 }
-#control a.left {
-  bottom: 60px;
+#control .compass .left.none {
+  top: 22px;
 }
-#control a.down {
-  left: 60px;
+#control .compass .right.none {
+  top: 22px;
+  left: 44px;
 }
-#control a.down {
-  bottom: 0px;
+#control .compass .down.none {
+  top: 44px;
+  left: 22px;
 }
-#control a.right {
-  right: 0px;
+#control .compass .down.left {
+  top: 44px;
 }
-#control a:hover {
-  background: rgba(0, 255, 0, 0.65);
+#control .compass .down.right {
+  top: 44px;
+  left: 44px;
 }
 #control .quality {
-  width: 200px;
+  width: 66px;
   height: 8px;
   position: absolute;
   bottom: 10px;
-  left: 42px;
+  left: 45px;
 }
 #control .quality .ui-slider-handle {
   height: 15px;
@@ -73,13 +80,12 @@ body, html {
   width: 15px;
 }
 #control .info {
-  border: 1px solid red;
   width: 150px;
-  bottom: 30px;
-  left: 50px;
+  bottom: 8px;
+  left: 140px;
   position: absolute;
   font-family: Verdana, sans-serif;
   font-weight: bolder;
   font-size: 12px;
-  color: #9B957A;
+  color: #2C2720;
 }

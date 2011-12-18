@@ -21,52 +21,54 @@ body,html {
 #control {
 	position: absolute;
 
-	a {
-		display: block;
+	.compass {
 		position: absolute;
-
-		@inset: 60px;
-
-		&.up,&.down {
-			height: @inset;
-			left: @inset;
-			right: @inset;
+		@side: 18px;
+		@grid: @side + 4px;
+		width: @grid * 3 - 3;
+		height: @grid * 3 - 3;
+		bottom: 40px;
+		left: 47px;
+		a {
+			width: @side;
+			height: @side;
+			position: absolute;
 		}
 
-		&.left,&.right {
-			width: @inset;
-			top: 0;
-			bottom: 0;
+		.up.none {
+			left: @grid;
 		}
-
-		&.left {
-			bottom: @inset;
+		.up.left {
 		}
-		&.down {
-			left: @inset;
+		.up.right {
+			left: @grid * 2;
 		}
-
-		&.down {
-			bottom: 0px;
+		.left.none {
+			top: @grid;
 		}
-
-		&.right {
-			right: 0px;
+		.right.none {
+			top: @grid;
+			left: @grid * 2;
 		}
-		
-		&:hover {
-			background: rgba(0,255,0,0.65);
+		.down.none {
+			top: @grid * 2;
+			left: @grid;
+		}
+		.down.left {
+			top: @grid * 2;
+		}
+		.down.right {
+			top: @grid * 2;
+			left: @grid * 2;
 		}
 	}
 
-	@offset: 0px;
-
 	.quality {
-		width: 200px;
+		width: 66px;
 		height: 8px;
 		position: absolute;
-		bottom: 10px + @offset;
-		left: 42px + @offset;
+		bottom: 10px;
+		left: 45px;
 		.ui-slider-handle {
 			height: 15px;
 			width: 15px;
@@ -77,8 +79,8 @@ body,html {
 		height: 200px;
 		width: 8px;
 		position: absolute;
-		bottom: 40px + @offset;
-		left: 15px + @offset;
+		bottom: 40px;
+		left: 15px;
 		.ui-slider-handle {
 			height: 15px;
 			width: 15px;
@@ -86,14 +88,13 @@ body,html {
 	}
 
 	.info {
-		border: 1px solid red;
 		width: 150px;
-		bottom: 30px;
-		left: 50px;
+		bottom: 8px;
+		left: 140px;
 		position: absolute;
 		font-family: Verdana, sans-serif;
 		font-weight: bolder;
 		font-size: 12px;
-		color: #9B957A;
+		color: #2C2720;
 	}
 }

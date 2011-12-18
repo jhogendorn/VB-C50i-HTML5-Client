@@ -61,15 +61,20 @@ class Api_Camera extends Api_Abstract
 	svcinfo: {}
 	_addSvcInfo: (info) =>
 		@svcinfo = jQuery.extend(true, {}, @svcinfo, info)
+	image_size: '192x144'
+	getAttr: (name) ->
+		@svcinfo[name]
 	OpenCameraServer: (callback) =>
+		delete @api.defaults.connection_id
 		@_callApi(
 			'OpenCameraServer',
 				client_version: 'CamControl'
-				image_size: '192x144'#'768x576'
+				image_size: @image_size
 			(data) =>
 				data = @parse(data)
 				@api.defaults.connection_id = data.connection_id
 				@_addSvcInfo(data)
+				@on = true
 				@trigger('SessionStart')
 				if callback? and typeof callback is "function"
 					callback()
@@ -148,16 +153,16 @@ class Api_Camera extends Api_Abstract
 				if callback? and typeof callback is "function"
 					callback()
 		)
-	OperateCamera: (movements) =>
+	OperateCamera: (callback, movements) =>
+		@_callApi(
+			'OperateCamera',
+			movements,
+			(data) =>
+				@trigger('OperatedCamera')
+				if callback? and typeof callback is "function"
+					callback()
+		)
 	GetLiveImage: (callback) =>
-		#@_callApi(
-			#'GetLiveImage',
-				#serialize_requests: 'yes'
-			#(data) =>
-				#@trigger('GotLiveImage')
-				#if callback? and typeof callback is "function"
-					#callback()
-		#)
 		Config.baseurl + 'GetLiveImage?serialize_requests=yes&connection_id=' + @svcinfo.connection_id
 	GetPanoramaImage: (callback) =>
 		@_callApi(
@@ -184,105 +189,73 @@ class Api_Camera extends Api_Abstract
 			{}
 			(data) =>
 				@_addSvcInfo(@parse(data))
+				@on = false
 				@trigger('SessionEnd')
 				if callback? and typeof callback is "function"
 					callback()
 		)
 
-class Frame extends Eventish
-	width: null
-	height: null
-	src: null
-	image: null
+class Camera extends Eventish
+	position: {}
 	api: null
-	socket: null
-	constructor: (api) ->
-		@api = api
-		@src = @api.GetLiveImage()
-		@image = new Image()
-		@image.onload = () =>
-			@.trigger('onload')
-		@image.src = @src # .src = "data:image/gif;base64," + msg.data
-	setWidth: (width) ->
-		@width = width
-		return @
-	setHeight: (height) ->
-		@height = height
-		return @
-	resize: (width, height) ->
-		destX = destY = 0
-		ratW = width / @width
-		ratH = height / @height
-		ratio = if ratW < ratH then ratW else ratH
-		destW = @width * ratio
-		destH = @height * ratio
-		@width = destW
-		@height = destH
-		return @
-	position: (width, height) ->
-		padT = (width - @width) / 2
-		padL = (height - @height) / 2
-		return {
-			vertical: padT
-			horizontal: padL
-		}
-	render: (canvasid) ->
-		canvas = document.getElementById(canvasid).getContext('2d')
-		maxW = window.innerWidth
-		maxH = window.innerHeight
-		canvas.canvas.width = maxW
-		canvas.canvas.height = maxH
-		origW = @api.svcinfo.image_width
-		origH = @api.svcinfo.image_height
-		@setWidth(origW).setHeight(origH)
-		@resize(maxW, maxH)
-		$('#control').css('width', @width).css('height', @height)
-		{'vertical': padT, 'horizontal': padL } = @position(maxW, maxH)
-		$('#control').css('left', padT).css('top', padL)
-		canvas.drawImage(@image, 0, 0, origW, origH, padT, padL, @width, @height)
+	state: false
+	canvas: null
+	timer: null
+	constructor: (canvas) ->
+		@api = new Api_Camera()
+		@canvas = canvas
+		@position =
+			x:
+				min: 0
+				max: 0
+				val: 0
+			y:
+				min: 0
+				max: 0
+				val: 0
+			z:
+				min: 0
+				max: 0
+				val: 0
 
-		
-$(document).ready(() ->
-	api = new Api_Camera()
-	api.bind('SessionStart', () ->
-		queue = [
-			api.GetCameraServerInfo
-			api.GetVideoInfo
-			api.GetCameraInfo
-		]
+		@api.bind('SessionStart', () =>
+			queue = [
+				@api.GetCameraServerInfo
+				@api.GetVideoInfo
+				@api.GetCameraInfo
+			]
 
-		count = queue.length
-		for call in queue
-			done = () ->
+			count = queue.length
+			done = () =>
 				count--
 				if count < 1
-					api.trigger('CameraReady')
+					@update()
+					@trigger('Ready')
 
-			call(done)
-	)
-	api.bind('CameraReady', () ->
-		console.log(api.svcinfo)
-		zoom = 
-			min: Number(api.svcinfo.zoom_tele_limit)
-			max: Number(api.svcinfo.zoom_wide_limit)
-			val: Number(api.svcinfo.zoom_current_value)
-		$('.zoom').slider(
-				max: zoom.max
-				min: zoom.min
-				#step: -1
-				orientation: "vertical"
-				value: zoom.max - zoom.val + zoom.min
-				change: (event, ui) ->
-					console.log(zoom.max - ui.value + zoom.min)
+			for call in queue
+				call(done)
 		)
-		$('.quality').slider(
-				min: 0
-				max: Number(api.svcinfo.image_size.length) - 1
-				change: (event, ui) ->
-					console.log(api.svcinfo.image_size[ui.value])
+		@bind('Ready', () ->
+			@_loopStart()
 		)
-		frame = new Frame(api)
-		timer =
+	switchOn: (res = '192x144') ->
+		@state = true
+		@api.image_size = res
+		@api.OpenCameraServer()
+	switchOff: () ->
+		@state = false	
+	update: () ->
+		@position.x.min = Number(@api.getAttr('pan_left_end'))
+		@position.x.max = Number(@api.getAttr('pan_right_end'))
+		@position.x.val = Number(@api.getAttr('pan_current_value'))
+		@position.y.min = Number(@api.getAttr('tilt_down_end'))
+		@position.y.max = Number(@api.getAttr('tilt_up_end'))
+		@position.y.val = Number(@api.getAttr('tilt_current_value'))
+		@position.z.min = Number(@api.getAttr('zoom_tele_end'))
+		@position.z.max = Number(@api.getAttr('zoom_wide_end'))
+		@position.z.val = Number(@api.getAttr('zoom_current_value'))
+	_loopStart: () ->
+		@timer =
 			count: Number(0)
 			sum: Number(0)
 			stack: [Number(new Date().getTime())]
@@ -304,23 +277,166 @@ $(document).ready(() ->
 				sum = 0
 				sum = Number(sum) + Number(item) for item in @stack
 				sum / @stack.length
+		@_loop()
+	_loop: () ->
+		if @state
+			@timer.recalc()
+			$('.info .framerate.floating').html("FPS: " + new Number(1 / (@timer.getStackAvg() / 1000)).toFixed(2))
+			$('.info .framerate.average').html("AVG: " + new Number(1 / (@timer.getAvg() / 1000)).toFixed(2))	
+			frame = new Image()
+			frame.onload = () =>
+				@_render(frame)	
+				@_loop()
+			frame.src = @api.GetLiveImage()
+		else
+			@api.CloseCameraServer(() =>
+				@trigger('Closed')
+			)
+	_render: (image) ->
+		canvas = document.getElementById(@canvas).getContext('2d')
+		maxW = window.innerWidth
+		maxH = window.innerHeight
+		canvas.canvas.width = maxW
+		canvas.canvas.height = maxH
+		origW = @api.getAttr("image_width") * 1
+		origH = @api.getAttr("image_height") * 1
+		ratW = maxW / origW
+		ratH = maxH / origH
+		ratio = if ratW < ratH then ratW else ratH
+		destW = origW * ratio
+		destH = origH * ratio
+		destX = (maxW - destW) / 2
+		destY = (maxH - destH) / 2
+		$('#control').css('width', destW).css('height', destH)
+		$('#control').css('left', destX).css('top', destY)
+		canvas.drawImage(image, 0, 0, origW, origH, destX, destY, destW, destH)
+	move: (direction, callback) ->
+		@api.GetCameraControl(() =>
+			@api.OperateCamera(
+				() =>
+					@api.GetCameraInfo(
+						() =>
+							@update()
+							if callback? and typeof callback is "function"
+								callback()
+					)
+				direction
+			)
+		)
+		
 
-		drawframe = () ->
-			timer.recalc()
-			$('.info .framerate.floating').html("FPS: " + new Number(1 / (timer.getStackAvg() / 1000)).toFixed(2))
-			$('.info .framerate.average').html("FPS AVG: " + new Number(1 / (timer.getAvg() / 1000)).toFixed(2))
-			frame.render('camera')
-			frame = null
-			frame = new Frame(api)
-			frame.bind('onload', drawframe)
+camera = null
 
-		frame.bind('onload', drawframe)
+$(document).ready(() ->
+	camera = new Camera('camera')
+	camera.switchOn()
+	camera.bindTemp('Ready', () ->
+		$('.zoom').slider(
+				max: camera.position.z.max
+				min: camera.position.z.min
+				orientation: "vertical"
+				value: camera.position.z.max - camera.position.z.val + camera.position.z.min
+				change: (event, ui) ->
+					zoom = camera.position.z.max - ui.value + camera.position.z.min
+					camera.move({ zoom: zoom })
+		)
+		$('.quality').slider(
+				min: 0
+				max: Number(camera.api.getAttr('image_size').length) - 1
+				change: (event, ui) ->
+					res = camera.api.getAttr('image_size')[ui.value]
+					camera.bindTemp('Closed', () ->
+						#camera = null
+						#camera = new Camera('camera')
+						camera.switchOn(res)
+					)
+					camera.switchOff()
+		)
+		offset = 1000
+		$('#control .up.none').button(
+				icons:
+					primary: "ui-icon-carat-1-n"
+				text: false
+		).click(-> 
+			camera.move({ tilt: camera.position.y.val + offset })
+			false
+		)
+
+		$('#control .up.left').button(
+				icons:
+					primary: "ui-icon-carat-1-nw"
+				text: false
+		).click(-> 
+			camera.move(
+					tilt: camera.position.y.val + offset, 
+					pan: camera.position.x.val + offset * -1 
+			)
+			false
+		)
+
+		$('#control .up.right').button(
+				icons:
+					primary: "ui-icon-carat-1-ne"
+				text: false
+		).click(-> 
+			camera.move(
+					tilt: camera.position.y.val + offset, 
+					pan: camera.position.x.val + offset
+			)
+			false
+		)
+
+		$('#control .left.none').button(
+				icons:
+					primary: "ui-icon-carat-1-w"
+				text: false
+		).click(-> 
+			camera.move(
+					pan: camera.position.x.val + offset * -1
+			)
+			false
+		)
+		$('#control .right.none').button(
+				icons:
+					primary: "ui-icon-carat-1-e"
+				text: false
+		).click(-> 
+			camera.move(
+					pan: camera.position.x.val + offset
+			)
+			false
+		)
+		$('#control .down.none').button(
+				icons:
+					primary: "ui-icon-carat-1-s"
+				text: false
+		).click(-> 
+			camera.move({tilt: camera.position.y.val + offset * -1})
+			false
+		)
+		$('#control .down.left').button(
+				icons:
+					primary: "ui-icon-carat-1-sw"
+				text: false
+		).click(-> 
+			camera.move(
+					tilt: camera.position.y.val + offset * -1, 
+					pan: camera.position.x.val + offset * -1
+			)
+			false
+		)
+
+		$('#control .down.right').button(
+				icons:
+					primary: "ui-icon-carat-1-se"
+				text: false
+		).click(-> 
+			camera.move(
+					tilt: camera.position.y.val + offset * -1, 
+					pan: camera.position.x.val + offset
+			)
+			false
+		)
+
 	)
-	#$(window).resize(() ->
-			#maxW = window.innerWidth
-			#maxH = window.innerHeight
-			#canvas.canvas.width = maxW
-			#canvas.canvas.height = maxH
-	#)
-	api.OpenCameraServer()
 )

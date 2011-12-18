@@ -1,4 +1,4 @@
-var Api_Abstract, Api_Camera, Config, Eventish, Frame;
+var Api_Abstract, Api_Camera, Camera, Config, Eventish, camera;
 var __hasProp = Object.prototype.hasOwnProperty, __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor; child.__super__ = parent.prototype; return child; }, __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
 
 Config = (function() {
@@ -142,15 +142,23 @@ Api_Camera = (function() {
     return this.svcinfo = jQuery.extend(true, {}, this.svcinfo, info);
   };
 
+  Api_Camera.prototype.image_size = '192x144';
+
+  Api_Camera.prototype.getAttr = function(name) {
+    return this.svcinfo[name];
+  };
+
   Api_Camera.prototype.OpenCameraServer = function(callback) {
     var _this = this;
+    delete this.api.defaults.connection_id;
     this._callApi('OpenCameraServer', {
       client_version: 'CamControl',
-      image_size: '192x144'
+      image_size: this.image_size
     }, function(data) {
       data = _this.parse(data);
       _this.api.defaults.connection_id = data.connection_id;
       _this._addSvcInfo(data);
+      _this.on = true;
       _this.trigger('SessionStart');
       if ((callback != null) && typeof callback === "function") return callback();
     });
@@ -233,7 +241,13 @@ Api_Camera = (function() {
     });
   };
 
-  Api_Camera.prototype.OperateCamera = function(movements) {};
+  Api_Camera.prototype.OperateCamera = function(callback, movements) {
+    var _this = this;
+    return this._callApi('OperateCamera', movements, function(data) {
+      _this.trigger('OperatedCamera');
+      if ((callback != null) && typeof callback === "function") return callback();
+    });
+  };
 
   Api_Camera.prototype.GetLiveImage = function(callback) {
     return Config.baseurl + 'GetLiveImage?serialize_requests=yes&connection_id=' + this.svcinfo.connection_id;
@@ -262,6 +276,7 @@ Api_Camera = (function() {
     var _this = this;
     return this._callApi('GetCameraControl', {}, function(data) {
       _this._addSvcInfo(_this.parse(data));
+      _this.on = false;
       _this.trigger('SessionEnd');
       if ((callback != null) && typeof callback === "function") return callback();
     });
@@ -271,131 +286,89 @@ Api_Camera = (function() {
 
 })();
 
-Frame = (function() {
+Camera = (function() {
 
-  __extends(Frame, Eventish);
+  __extends(Camera, Eventish);
 
-  Frame.prototype.width = null;
+  Camera.prototype.position = {};
 
-  Frame.prototype.height = null;
+  Camera.prototype.api = null;
 
-  Frame.prototype.src = null;
+  Camera.prototype.state = false;
 
-  Frame.prototype.image = null;
+  Camera.prototype.canvas = null;
 
-  Frame.prototype.api = null;
+  Camera.prototype.timer = null;
 
-  Frame.prototype.socket = null;
-
-  function Frame(api) {
+  function Camera(canvas) {
     var _this = this;
-    this.api = api;
-    this.src = this.api.GetLiveImage();
-    this.image = new Image();
-    this.image.onload = function() {
-      return _this.trigger('onload');
+    this.api = new Api_Camera();
+    this.canvas = canvas;
+    this.position = {
+      x: {
+        min: 0,
+        max: 0,
+        val: 0
+      },
+      y: {
+        min: 0,
+        max: 0,
+        val: 0
+      },
+      z: {
+        min: 0,
+        max: 0,
+        val: 0
+      }
     };
-    this.image.src = this.src;
-  }
-
-  Frame.prototype.setWidth = function(width) {
-    this.width = width;
-    return this;
-  };
-
-  Frame.prototype.setHeight = function(height) {
-    this.height = height;
-    return this;
-  };
-
-  Frame.prototype.resize = function(width, height) {
-    var destH, destW, destX, destY, ratH, ratW, ratio;
-    destX = destY = 0;
-    ratW = width / this.width;
-    ratH = height / this.height;
-    ratio = ratW < ratH ? ratW : ratH;
-    destW = this.width * ratio;
-    destH = this.height * ratio;
-    this.width = destW;
-    this.height = destH;
-    return this;
-  };
-
-  Frame.prototype.position = function(width, height) {
-    var padL, padT;
-    padT = (width - this.width) / 2;
-    padL = (height - this.height) / 2;
-    return {
-      vertical: padT,
-      horizontal: padL
-    };
-  };
-
-  Frame.prototype.render = function(canvasid) {
-    var canvas, maxH, maxW, origH, origW, padL, padT, _ref;
-    canvas = document.getElementById(canvasid).getContext('2d');
-    maxW = window.innerWidth;
-    maxH = window.innerHeight;
-    canvas.canvas.width = maxW;
-    canvas.canvas.height = maxH;
-    origW = this.api.svcinfo.image_width;
-    origH = this.api.svcinfo.image_height;
-    this.setWidth(origW).setHeight(origH);
-    this.resize(maxW, maxH);
-    $('#control').css('width', this.width).css('height', this.height);
-    _ref = this.position(maxW, maxH), padT = _ref['vertical'], padL = _ref['horizontal'];
-    $('#control').css('left', padT).css('top', padL);
-    return canvas.drawImage(this.image, 0, 0, origW, origH, padT, padL, this.width, this.height);
-  };
-
-  return Frame;
-
-})();
-
-$(document).ready(function() {
-  var api;
-  api = new Api_Camera();
-  api.bind('SessionStart', function() {
-    var call, count, done, queue, _i, _len, _results;
-    queue = [api.GetCameraServerInfo, api.GetVideoInfo, api.GetCameraInfo];
-    count = queue.length;
-    _results = [];
-    for (_i = 0, _len = queue.length; _i < _len; _i++) {
-      call = queue[_i];
+    this.api.bind('SessionStart', function() {
+      var call, count, done, queue, _i, _len, _results;
+      queue = [_this.api.GetCameraServerInfo, _this.api.GetVideoInfo, _this.api.GetCameraInfo];
+      count = queue.length;
       done = function() {
         count--;
-        if (count < 1) return api.trigger('CameraReady');
+        if (count < 1) {
+          _this.update();
+          return _this.trigger('Ready');
+        }
       };
-      _results.push(call(done));
-    }
-    return _results;
-  });
-  api.bind('CameraReady', function() {
-    var drawframe, frame, timer, zoom;
-    console.log(api.svcinfo);
-    zoom = {
-      min: Number(api.svcinfo.zoom_tele_limit),
-      max: Number(api.svcinfo.zoom_wide_limit),
-      val: Number(api.svcinfo.zoom_current_value)
-    };
-    $('.zoom').slider({
-      max: zoom.max,
-      min: zoom.min,
-      orientation: "vertical",
-      value: zoom.max - zoom.val + zoom.min,
-      change: function(event, ui) {
-        return console.log(zoom.max - ui.value + zoom.min);
+      _results = [];
+      for (_i = 0, _len = queue.length; _i < _len; _i++) {
+        call = queue[_i];
+        _results.push(call(done));
       }
+      return _results;
     });
-    $('.quality').slider({
-      min: 0,
-      max: Number(api.svcinfo.image_size.length) - 1,
-      change: function(event, ui) {
-        return console.log(api.svcinfo.image_size[ui.value]);
-      }
+    this.bind('Ready', function() {
+      return this._loopStart();
     });
-    frame = new Frame(api);
-    timer = {
+  }
+
+  Camera.prototype.switchOn = function(res) {
+    if (res == null) res = '192x144';
+    this.state = true;
+    this.api.image_size = res;
+    return this.api.OpenCameraServer();
+  };
+
+  Camera.prototype.switchOff = function() {
+    return this.state = false;
+  };
+
+  Camera.prototype.update = function() {
+    this.position.x.min = Number(this.api.getAttr('pan_left_end'));
+    this.position.x.max = Number(this.api.getAttr('pan_right_end'));
+    this.position.x.val = Number(this.api.getAttr('pan_current_value'));
+    this.position.y.min = Number(this.api.getAttr('tilt_down_end'));
+    this.position.y.max = Number(this.api.getAttr('tilt_up_end'));
+    this.position.y.val = Number(this.api.getAttr('tilt_current_value'));
+    this.position.z.min = Number(this.api.getAttr('zoom_tele_end'));
+    this.position.z.max = Number(this.api.getAttr('zoom_wide_end'));
+    return this.position.z.val = Number(this.api.getAttr('zoom_current_value'));
+  };
+
+  Camera.prototype._loopStart = function() {
+    this.timer = {
       count: Number(0),
       sum: Number(0),
       stack: [Number(new Date().getTime())],
@@ -428,16 +401,192 @@ $(document).ready(function() {
         return sum / this.stack.length;
       }
     };
-    drawframe = function() {
-      timer.recalc();
-      $('.info .framerate.floating').html("FPS: " + new Number(1 / (timer.getStackAvg() / 1000)).toFixed(2));
-      $('.info .framerate.average').html("FPS AVG: " + new Number(1 / (timer.getAvg() / 1000)).toFixed(2));
-      frame.render('camera');
-      frame = null;
-      frame = new Frame(api);
-      return frame.bind('onload', drawframe);
-    };
-    return frame.bind('onload', drawframe);
+    return this._loop();
+  };
+
+  Camera.prototype._loop = function() {
+    var frame;
+    var _this = this;
+    if (this.state) {
+      this.timer.recalc();
+      $('.info .framerate.floating').html("FPS: " + new Number(1 / (this.timer.getStackAvg() / 1000)).toFixed(2));
+      $('.info .framerate.average').html("AVG: " + new Number(1 / (this.timer.getAvg() / 1000)).toFixed(2));
+      frame = new Image();
+      frame.onload = function() {
+        _this._render(frame);
+        return _this._loop();
+      };
+      return frame.src = this.api.GetLiveImage();
+    } else {
+      return this.api.CloseCameraServer(function() {
+        return _this.trigger('Closed');
+      });
+    }
+  };
+
+  Camera.prototype._render = function(image) {
+    var canvas, destH, destW, destX, destY, maxH, maxW, origH, origW, ratH, ratW, ratio;
+    canvas = document.getElementById(this.canvas).getContext('2d');
+    maxW = window.innerWidth;
+    maxH = window.innerHeight;
+    canvas.canvas.width = maxW;
+    canvas.canvas.height = maxH;
+    origW = this.api.getAttr("image_width") * 1;
+    origH = this.api.getAttr("image_height") * 1;
+    ratW = maxW / origW;
+    ratH = maxH / origH;
+    ratio = ratW < ratH ? ratW : ratH;
+    destW = origW * ratio;
+    destH = origH * ratio;
+    destX = (maxW - destW) / 2;
+    destY = (maxH - destH) / 2;
+    $('#control').css('width', destW).css('height', destH);
+    $('#control').css('left', destX).css('top', destY);
+    return canvas.drawImage(image, 0, 0, origW, origH, destX, destY, destW, destH);
+  };
+
+  Camera.prototype.move = function(direction, callback) {
+    var _this = this;
+    return this.api.GetCameraControl(function() {
+      return _this.api.OperateCamera(function() {
+        return _this.api.GetCameraInfo(function() {
+          _this.update();
+          if ((callback != null) && typeof callback === "function") {
+            return callback();
+          }
+        });
+      }, direction);
+    });
+  };
+
+  return Camera;
+
+})();
+
+camera = null;
+
+$(document).ready(function() {
+  camera = new Camera('camera');
+  camera.switchOn();
+  return camera.bindTemp('Ready', function() {
+    var offset;
+    $('.zoom').slider({
+      max: camera.position.z.max,
+      min: camera.position.z.min,
+      orientation: "vertical",
+      value: camera.position.z.max - camera.position.z.val + camera.position.z.min,
+      change: function(event, ui) {
+        var zoom;
+        zoom = camera.position.z.max - ui.value + camera.position.z.min;
+        return camera.move({
+          zoom: zoom
+        });
+      }
+    });
+    $('.quality').slider({
+      min: 0,
+      max: Number(camera.api.getAttr('image_size').length) - 1,
+      change: function(event, ui) {
+        var res;
+        res = camera.api.getAttr('image_size')[ui.value];
+        camera.bindTemp('Closed', function() {
+          return camera.switchOn(res);
+        });
+        return camera.switchOff();
+      }
+    });
+    offset = 1000;
+    $('#control .up.none').button({
+      icons: {
+        primary: "ui-icon-carat-1-n"
+      },
+      text: false
+    }).click(function() {
+      camera.move({
+        tilt: camera.position.y.val + offset
+      });
+      return false;
+    });
+    $('#control .up.left').button({
+      icons: {
+        primary: "ui-icon-carat-1-nw"
+      },
+      text: false
+    }).click(function() {
+      camera.move({
+        tilt: camera.position.y.val + offset,
+        pan: camera.position.x.val + offset * -1
+      });
+      return false;
+    });
+    $('#control .up.right').button({
+      icons: {
+        primary: "ui-icon-carat-1-ne"
+      },
+      text: false
+    }).click(function() {
+      camera.move({
+        tilt: camera.position.y.val + offset,
+        pan: camera.position.x.val + offset
+      });
+      return false;
+    });
+    $('#control .left.none').button({
+      icons: {
+        primary: "ui-icon-carat-1-w"
+      },
+      text: false
+    }).click(function() {
+      camera.move({
+        pan: camera.position.x.val + offset * -1
+      });
+      return false;
+    });
+    $('#control .right.none').button({
+      icons: {
+        primary: "ui-icon-carat-1-e"
+      },
+      text: false
+    }).click(function() {
+      camera.move({
+        pan: camera.position.x.val + offset
+      });
+      return false;
+    });
+    $('#control .down.none').button({
+      icons: {
+        primary: "ui-icon-carat-1-s"
+      },
+      text: false
+    }).click(function() {
+      camera.move({
+        tilt: camera.position.y.val + offset * -1
+      });
+      return false;
+    });
+    $('#control .down.left').button({
+      icons: {
+        primary: "ui-icon-carat-1-sw"
+      },
+      text: false
+    }).click(function() {
+      camera.move({
+        tilt: camera.position.y.val + offset * -1,
+        pan: camera.position.x.val + offset * -1
+      });
+      return false;
+    });
+    return $('#control .down.right').button({
+      icons: {
+        primary: "ui-icon-carat-1-se"
+      },
+      text: false
+    }).click(function() {
+      camera.move({
+        tilt: camera.position.y.val + offset * -1,
+        pan: camera.position.x.val + offset
+      });
+      return false;
+    });
   });
-  return api.OpenCameraServer();
 });
