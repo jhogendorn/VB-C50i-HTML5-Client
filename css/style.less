@@ -27,8 +27,8 @@ body,html {
 		@grid: @side + 4px;
 		width: @grid * 3 - 3;
 		height: @grid * 3 - 3;
-		bottom: 40px;
-		left: 47px;
+		bottom: 60px;
+		left: 67px;
 		a {
 			width: @side;
 			height: @side;
@@ -68,7 +68,19 @@ body,html {
 		height: 8px;
 		position: absolute;
 		bottom: 10px;
-		left: 45px;
+		left: 65px;
+		.ui-slider-handle {
+			height: 15px;
+			width: 15px;
+		}
+	}
+
+	.speed {
+		width: 66px;
+		height: 8px;
+		position: absolute;
+		bottom: 30px;
+		left: 65px;
 		.ui-slider-handle {
 			height: 15px;
 			width: 15px;
@@ -87,10 +99,22 @@ body,html {
 		}
 	}
 
+	.steps {
+		height: 200px;
+		width: 8px;
+		position: absolute;
+		bottom: 40px;
+		left: 35px;
+		.ui-slider-handle {
+			height: 15px;
+			width: 15px;
+		}
+	}
+
 	.info {
-		width: 150px;
+		width: 250px;
 		bottom: 8px;
-		left: 140px;
+		left: 280px;
 		position: absolute;
 		font-family: Verdana, sans-serif;
 		font-weight: bolder;

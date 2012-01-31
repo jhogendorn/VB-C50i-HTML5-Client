@@ -1,5 +1,5 @@
 class Config
-	@baseurl = 'http://space.hsbne.org:52169/-wvhttp-01-/'
+	@baseurl = window.location.origin + '/-wvhttp-01-/'
 
 class Eventish
 	bind: (event, fn) ->
@@ -201,6 +201,9 @@ class Camera extends Eventish
 	state: false
 	canvas: null
 	timer: null
+	speed: 50
+	res: '192x144'
+	steps: 1000
 	constructor: (canvas) ->
 		@api = new Api_Camera()
 		@canvas = canvas
@@ -238,9 +241,11 @@ class Camera extends Eventish
 		@bind('Ready', () ->
 			@_loopStart()
 		)
-	switchOn: (res = '192x144') ->
+	setSpeed: (speed = 50) ->
+		@speed = speed
+	switchOn: () ->
 		@state = true
-		@api.image_size = res
+		@api.image_size = @res
 		@api.OpenCameraServer()
 	switchOff: () ->
 		@state = false	
@@ -277,7 +282,8 @@ class Camera extends Eventish
 				sum = 0
 				sum = Number(sum) + Number(item) for item in @stack
 				sum / @stack.length
-		@_loop()
+		@_loopHandle = setInterval($.proxy(@_loop, @), @speed)
+		#@_loop()
 	_loop: () ->
 		if @state
 			@timer.recalc()
@@ -286,11 +292,12 @@ class Camera extends Eventish
 			frame = new Image()
 			frame.onload = () =>
 				@_render(frame)	
-				@_loop()
+				#@_loop()
 			frame.src = @api.GetLiveImage()
 		else
 			@api.CloseCameraServer(() =>
 				@trigger('Closed')
+				clearInterval(@_loopHandle)
 			)
 	_render: (image) ->
 		canvas = document.getElementById(@canvas).getContext('2d')
@@ -323,6 +330,8 @@ class Camera extends Eventish
 				direction
 			)
 		)
+	getOffset: () ->
+		Math.floor(@position.z.val / (@position.z.max / @steps))
 		
 
 camera = null
@@ -340,25 +349,43 @@ $(document).ready(() ->
 					zoom = camera.position.z.max - ui.value + camera.position.z.min
 					camera.move({ zoom: zoom })
 		)
+		$('.steps').slider(
+				max: 5000
+				min: 1
+				orientation: "vertical"
+				value: 1000
+				change: (event, ui) ->
+					camera.steps = ui.value
+		)
 		$('.quality').slider(
 				min: 0
 				max: Number(camera.api.getAttr('image_size').length) - 1
 				change: (event, ui) ->
 					res = camera.api.getAttr('image_size')[ui.value]
+					camera.res = res	
 					camera.bindTemp('Closed', () ->
-						#camera = null
-						#camera = new Camera('camera')
-						camera.switchOn(res)
+						camera.switchOn()
 					)
 					camera.switchOff()
 		)
-		offset = 1000
+		$('.speed').slider(
+				min: 0
+				max: 80
+				value: camera.speed
+				change: (event, ui) ->
+					speed = ui.value
+					camera.bindTemp('Closed', () ->
+						camera.setSpeed(speed)
+						camera.switchOn()
+					)
+					camera.switchOff()
+		)
 		$('#control .up.none').button(
 				icons:
 					primary: "ui-icon-carat-1-n"
 				text: false
 		).click(-> 
-			camera.move({ tilt: camera.position.y.val + offset })
+			camera.move({ tilt: camera.position.y.val + camera.getOffset() })
 			false
 		)
 
@@ -368,8 +395,8 @@ $(document).ready(() ->
 				text: false
 		).click(-> 
 			camera.move(
-					tilt: camera.position.y.val + offset, 
-					pan: camera.position.x.val + offset * -1 
+					tilt: camera.position.y.val + camera.getOffset(), 
+					pan: camera.position.x.val + camera.getOffset() * -1 
 			)
 			false
 		)
@@ -380,8 +407,8 @@ $(document).ready(() ->
 				text: false
 		).click(-> 
 			camera.move(
-					tilt: camera.position.y.val + offset, 
-					pan: camera.position.x.val + offset
+					tilt: camera.position.y.val + camera.getOffset(), 
+					pan: camera.position.x.val + camera.getOffset()
 			)
 			false
 		)
@@ -392,7 +419,7 @@ $(document).ready(() ->
 				text: false
 		).click(-> 
 			camera.move(
-					pan: camera.position.x.val + offset * -1
+					pan: camera.position.x.val + camera.getOffset() * -1
 			)
 			false
 		)
@@ -402,7 +429,7 @@ $(document).ready(() ->
 				text: false
 		).click(-> 
 			camera.move(
-					pan: camera.position.x.val + offset
+					pan: camera.position.x.val + camera.getOffset()
 			)
 			false
 		)
@@ -411,7 +438,7 @@ $(document).ready(() ->
 					primary: "ui-icon-carat-1-s"
 				text: false
 		).click(-> 
-			camera.move({tilt: camera.position.y.val + offset * -1})
+			camera.move({tilt: camera.position.y.val + camera.getOffset() * -1})
 			false
 		)
 		$('#control .down.left').button(
@@ -420,8 +447,8 @@ $(document).ready(() ->
 				text: false
 		).click(-> 
 			camera.move(
-					tilt: camera.position.y.val + offset * -1, 
-					pan: camera.position.x.val + offset * -1
+					tilt: camera.position.y.val + camera.getOffset() * -1, 
+					pan: camera.position.x.val + camera.getOffset() * -1
 			)
 			false
 		)
@@ -432,8 +459,8 @@ $(document).ready(() ->
 				text: false
 		).click(-> 
 			camera.move(
-					tilt: camera.position.y.val + offset * -1, 
-					pan: camera.position.x.val + offset
+					tilt: camera.position.y.val + camera.getOffset() * -1, 
+					pan: camera.position.x.val + camera.getOffset()
 			)
 			false
 		)

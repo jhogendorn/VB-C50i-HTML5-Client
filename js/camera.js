@@ -5,7 +5,7 @@ Config = (function() {
 
   function Config() {}
 
-  Config.baseurl = 'http://space.hsbne.org:52169/-wvhttp-01-/';
+  Config.baseurl = window.location.origin + '/-wvhttp-01-/';
 
   return Config;
 
@@ -300,6 +300,12 @@ Camera = (function() {
 
   Camera.prototype.timer = null;
 
+  Camera.prototype.speed = 50;
+
+  Camera.prototype.res = '192x144';
+
+  Camera.prototype.steps = 1000;
+
   function Camera(canvas) {
     var _this = this;
     this.api = new Api_Camera();
@@ -344,10 +350,14 @@ Camera = (function() {
     });
   }
 
-  Camera.prototype.switchOn = function(res) {
-    if (res == null) res = '192x144';
+  Camera.prototype.setSpeed = function(speed) {
+    if (speed == null) speed = 50;
+    return this.speed = speed;
+  };
+
+  Camera.prototype.switchOn = function() {
     this.state = true;
-    this.api.image_size = res;
+    this.api.image_size = this.res;
     return this.api.OpenCameraServer();
   };
 
@@ -401,7 +411,7 @@ Camera = (function() {
         return sum / this.stack.length;
       }
     };
-    return this._loop();
+    return this._loopHandle = setInterval($.proxy(this._loop, this), this.speed);
   };
 
   Camera.prototype._loop = function() {
@@ -413,13 +423,13 @@ Camera = (function() {
       $('.info .framerate.average').html("AVG: " + new Number(1 / (this.timer.getAvg() / 1000)).toFixed(2));
       frame = new Image();
       frame.onload = function() {
-        _this._render(frame);
-        return _this._loop();
+        return _this._render(frame);
       };
       return frame.src = this.api.GetLiveImage();
     } else {
       return this.api.CloseCameraServer(function() {
-        return _this.trigger('Closed');
+        _this.trigger('Closed');
+        return clearInterval(_this._loopHandle);
       });
     }
   };
@@ -459,6 +469,10 @@ Camera = (function() {
     });
   };
 
+  Camera.prototype.getOffset = function() {
+    return Math.floor(this.position.z.val / (this.position.z.max / this.steps));
+  };
+
   return Camera;
 
 })();
@@ -469,7 +483,6 @@ $(document).ready(function() {
   camera = new Camera('camera');
   camera.switchOn();
   return camera.bindTemp('Ready', function() {
-    var offset;
     $('.zoom').slider({
       max: camera.position.z.max,
       min: camera.position.z.min,
@@ -483,19 +496,42 @@ $(document).ready(function() {
         });
       }
     });
+    $('.steps').slider({
+      max: 5000,
+      min: 1,
+      orientation: "vertical",
+      value: 1000,
+      change: function(event, ui) {
+        return camera.steps = ui.value;
+      }
+    });
     $('.quality').slider({
       min: 0,
       max: Number(camera.api.getAttr('image_size').length) - 1,
       change: function(event, ui) {
         var res;
         res = camera.api.getAttr('image_size')[ui.value];
+        camera.res = res;
         camera.bindTemp('Closed', function() {
-          return camera.switchOn(res);
+          return camera.switchOn();
         });
         return camera.switchOff();
       }
     });
-    offset = 1000;
+    $('.speed').slider({
+      min: 0,
+      max: 80,
+      value: camera.speed,
+      change: function(event, ui) {
+        var speed;
+        speed = ui.value;
+        camera.bindTemp('Closed', function() {
+          camera.setSpeed(speed);
+          return camera.switchOn();
+        });
+        return camera.switchOff();
+      }
+    });
     $('#control .up.none').button({
       icons: {
         primary: "ui-icon-carat-1-n"
@@ -503,7 +539,7 @@ $(document).ready(function() {
       text: false
     }).click(function() {
       camera.move({
-        tilt: camera.position.y.val + offset
+        tilt: camera.position.y.val + camera.getOffset()
       });
       return false;
     });
@@ -514,8 +550,8 @@ $(document).ready(function() {
       text: false
     }).click(function() {
       camera.move({
-        tilt: camera.position.y.val + offset,
-        pan: camera.position.x.val + offset * -1
+        tilt: camera.position.y.val + camera.getOffset(),
+        pan: camera.position.x.val + camera.getOffset() * -1
       });
       return false;
     });
@@ -526,8 +562,8 @@ $(document).ready(function() {
       text: false
     }).click(function() {
       camera.move({
-        tilt: camera.position.y.val + offset,
-        pan: camera.position.x.val + offset
+        tilt: camera.position.y.val + camera.getOffset(),
+        pan: camera.position.x.val + camera.getOffset()
       });
       return false;
     });
@@ -538,7 +574,7 @@ $(document).ready(function() {
       text: false
     }).click(function() {
       camera.move({
-        pan: camera.position.x.val + offset * -1
+        pan: camera.position.x.val + camera.getOffset() * -1
       });
       return false;
     });
@@ -549,7 +585,7 @@ $(document).ready(function() {
       text: false
     }).click(function() {
       camera.move({
-        pan: camera.position.x.val + offset
+        pan: camera.position.x.val + camera.getOffset()
       });
       return false;
     });
@@ -560,7 +596,7 @@ $(document).ready(function() {
       text: false
     }).click(function() {
       camera.move({
-        tilt: camera.position.y.val + offset * -1
+        tilt: camera.position.y.val + camera.getOffset() * -1
       });
       return false;
     });
@@ -571,8 +607,8 @@ $(document).ready(function() {
       text: false
     }).click(function() {
       camera.move({
-        tilt: camera.position.y.val + offset * -1,
-        pan: camera.position.x.val + offset * -1
+        tilt: camera.position.y.val + camera.getOffset() * -1,
+        pan: camera.position.x.val + camera.getOffset() * -1
       });
       return false;
     });
@@ -583,8 +619,8 @@ $(document).ready(function() {
       text: false
     }).click(function() {
       camera.move({
-        tilt: camera.position.y.val + offset * -1,
-        pan: camera.position.x.val + offset
+        tilt: camera.position.y.val + camera.getOffset() * -1,
+        pan: camera.position.x.val + camera.getOffset()
       });
       return false;
     });

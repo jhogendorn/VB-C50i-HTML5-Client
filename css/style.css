@@ -25,8 +25,8 @@ body, html {
   position: absolute;
   width: 63px;
   height: 63px;
-  bottom: 40px;
-  left: 47px;
+  bottom: 60px;
+  left: 67px;
 }
 #control .compass a {
   width: 18px;
@@ -62,9 +62,20 @@ body, html {
   height: 8px;
   position: absolute;
   bottom: 10px;
-  left: 45px;
+  left: 65px;
 }
 #control .quality .ui-slider-handle {
+  height: 15px;
+  width: 15px;
+}
+#control .speed {
+  width: 66px;
+  height: 8px;
+  position: absolute;
+  bottom: 30px;
+  left: 65px;
+}
+#control .speed .ui-slider-handle {
   height: 15px;
   width: 15px;
 }
@@ -79,10 +90,21 @@ body, html {
   height: 15px;
   width: 15px;
 }
+#control .steps {
+  height: 200px;
+  width: 8px;
+  position: absolute;
+  bottom: 40px;
+  left: 35px;
+}
+#control .steps .ui-slider-handle {
+  height: 15px;
+  width: 15px;
+}
 #control .info {
-  width: 150px;
+  width: 250px;
   bottom: 8px;
-  left: 140px;
+  left: 280px;
   position: absolute;
   font-family: Verdana, sans-serif;
   font-weight: bolder;
